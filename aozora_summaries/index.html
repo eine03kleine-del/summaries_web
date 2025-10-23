@@ -1,25 +1,187 @@
 <!DOCTYPE html>
-<html lang='ja'>
+<html lang="ja">
 <head>
-    <meta charset='UTF-8'>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>青空文庫 要約まとめ</title>
-    <style>
-        body { font-family: "游ゴシック", "Yu Gothic", sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #fafafa; }
-        h1 { color: #333; text-align: center; }
-        ul { list-style-type: none; padding: 0; }
-        li { margin: 10px 0; padding: 15px; background: white; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        a { text-decoration: none; color: #0066cc; font-size: 18px; }
-        a:hover { text-decoration: underline; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="青空文庫の名作5作品のあらすじ・要約をわかりやすく紹介。夏目漱石、太宰治、芥川龍之介など日本文学の傑作を網羅。">
+  <title>青空文庫要約集 - 日本文学の名作5作品</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; line-height: 1.8; background: #f8f9fa; }
+    header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 60px 20px; text-align: center; }
+    header h1 { font-size: 2.8em; margin-bottom: 15px; }
+    header p { font-size: 1.2em; opacity: 0.95; }
+    nav { background: #34495e; padding: 15px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    nav .container { max-width: 1200px; margin: 0 auto; display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+    nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; font-weight: bold; }
+    nav a:hover { background: rgba(255,255,255,0.2); }
+    .stats { max-width: 1200px; margin: 40px auto; padding: 0 20px; display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
+    .stat-box { text-align: center; }
+    .stat-box .number { font-size: 2.5em; color: #667eea; font-weight: bold; }
+    .stat-box .label { color: #666; margin-top: 5px; }
+    main { max-width: 1200px; margin: 40px auto; padding: 0 20px; }
+    .search-box { background: white; padding: 25px; border-radius: 12px; margin-bottom: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .search-box input { width: 100%; padding: 15px 20px; font-size: 1.1em; border: 2px solid #e0e0e0; border-radius: 8px; }
+    .search-box input:focus { outline: none; border-color: #667eea; }
+    .filter-tabs { margin-bottom: 30px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .filter-tabs button { padding: 10px 20px; border: none; background: white; border-radius: 20px; cursor: pointer; font-size: 1em; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .filter-tabs button.active { background: #667eea; color: white; }
+    .works-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
+    .work-card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s; }
+    .work-card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.15); }
+    .work-card h3 { color: #2c3e50; margin-bottom: 10px; font-size: 1.4em; line-height: 1.4; }
+    .work-card .author { color: #667eea; font-weight: bold; margin-bottom: 10px; }
+    .work-card .meta { color: #999; font-size: 0.9em; margin-bottom: 15px; }
+    .work-card .excerpt { color: #555; line-height: 1.7; margin-bottom: 20px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .work-card a { display: inline-block; background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; }
+    .work-card a:hover { background: #5568d3; }
+    .no-results { text-align: center; padding: 60px 20px; color: #999; font-size: 1.2em; }
+    footer { background: #2c3e50; color: white; padding: 40px 20px; text-align: center; margin-top: 80px; }
+    @media (max-width: 768px) {
+      header h1 { font-size: 2em; }
+      .stats { gap: 20px; }
+      .works-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
-    <h1>📚 青空文庫 要約まとめ</h1>
-    <p style="text-align: center; color: #666;">青空文庫の作品をあらすじ付きでまとめました</p>
-    <ul>
-        <li><a href='%E3%82%A2%E3%83%BC%E3%83%B4%E3%82%A3%E3%83%B3%E3%82%B0%20%E3%83%AF%E3%82%B7%E3%83%B3%E3%83%88%E3%83%B3.html'>アーヴィング ワシントン (2作品)</a></li>
-        <li><a href='%E6%84%9B%E7%9F%A5%20%E6%95%AC%E4%B8%80.html'>愛知 敬一 (1作品)</a></li>
-        <li><a href='%E4%BC%9A%E6%B4%A5%20%E5%85%AB%E4%B8%80.html'>会津 八一 (3作品)</a></li>
-    </ul>
+  <header>
+    <h1>📚 青空文庫要約集</h1>
+    <p>日本文学の名作を、わかりやすい要約で</p>
+  </header>
+
+  <nav>
+    <div class="container">
+      <a href="index.html">全作品</a>
+      <a href="by_author.html">著者別</a>
+      <a href="by_year.html">年代別</a>
+      <a href="by_genre.html">ジャンル別</a>
+    </div>
+  </nav>
+
+  <div class="stats">
+    <div class="stat-box">
+      <div class="number">5</div>
+      <div class="label">作品</div>
+    </div>
+    <div class="stat-box">
+      <div class="number">4</div>
+      <div class="label">著者</div>
+    </div>
+    <div class="stat-box">
+      <div class="number">0</div>
+      <div class="label">ジャンル</div>
+    </div>
+  </div>
+
+  <main>
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="🔍 作品名や著者名で検索...">
+    </div>
+
+    <div class="works-grid" id="worksGrid">
+      
+      <article class="work-card" data-title="こころ" data-author="夏目漱石" data-genre="None">
+        <h3>こころ</h3>
+        <div class="author">夏目漱石</div>
+        <div class="meta">
+          
+          
+        </div>
+        <div class="excerpt">明治時代の学生「私」が、鎌倉の海岸で出会った「先生」との交流を描いた物語。
+
+第一部では、私が先生に惹かれ、親交を深めていく過程が描かれる。先生は知的で魅力的だ...</div>
+        <a href="こころ.html">続きを読む →</a>
+      </article>
+      
+      <article class="work-card" data-title="走れメロス" data-author="太宰治" data-genre="None">
+        <h3>走れメロス</h3>
+        <div class="author">太宰治</div>
+        <div class="meta">
+          
+          
+        </div>
+        <div class="excerpt">シチリア島の村に住む羊飼いメロスは、妹の結婚式のために町へ出かける。そこで暴君ディオニス王の恐怖政治を知り、激怒して王城に乗り込む。
+
+メロスは処刑を言い渡され...</div>
+        <a href="走れメロス.html">続きを読む →</a>
+      </article>
+      
+      <article class="work-card" data-title="人間失格" data-author="太宰治" data-genre="None">
+        <h3>人間失格</h3>
+        <div class="author">太宰治</div>
+        <div class="meta">
+          
+          
+        </div>
+        <div class="excerpt">「恥の多い生涯を送って来ました」という告白から始まる主人公・大庭葉蔵の手記。
+
+幼少期から人間社会に馴染めず、道化を演じることで生き延びてきた葉蔵。美術学校に進...</div>
+        <a href="人間失格.html">続きを読む →</a>
+      </article>
+      
+      <article class="work-card" data-title="銀河鉄道の夜" data-author="宮沢賢治" data-genre="None">
+        <h3>銀河鉄道の夜</h3>
+        <div class="author">宮沢賢治</div>
+        <div class="meta">
+          
+          
+        </div>
+        <div class="excerpt">貧しい少年ジョバンニは、病気の母を支えるため働いている。銀河の祭りの夜、親友カムパネルラと再会する。
+
+ジョバンニが丘で目を覚ますと、銀河鉄道に乗っていた。隣に...</div>
+        <a href="銀河鉄道の夜.html">続きを読む →</a>
+      </article>
+      
+      <article class="work-card" data-title="羅生門" data-author="芥川龍之介" data-genre="None">
+        <h3>羅生門</h3>
+        <div class="author">芥川龍之介</div>
+        <div class="meta">
+          
+          
+        </div>
+        <div class="excerpt">平安時代末期、荒廃した京都。仕事を失った下人は、雨宿りのため羅生門の楼上に上がる。
+
+そこで死体の髪を抜く老婆を見つける。最初は憎悪を感じた下人だが、老婆が「こ...</div>
+        <a href="羅生門.html">続きを読む →</a>
+      </article>
+      
+    </div>
+
+    <div class="no-results" id="noResults" style="display: none;">
+      該当する作品が見つかりませんでした
+    </div>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 青空文庫要約集</p>
+    <p style="margin-top: 10px; opacity: 0.8;">最終更新: 2025-10-23</p>
+  </footer>
+
+  <script>
+    const searchInput = document.getElementById('searchInput');
+    const worksGrid = document.getElementById('worksGrid');
+    const noResults = document.getElementById('noResults');
+
+    searchInput.addEventListener('input', function() {
+      const query = this.value.toLowerCase().trim();
+      const cards = worksGrid.querySelectorAll('.work-card');
+      let visibleCount = 0;
+
+      cards.forEach(card => {
+        const title = card.dataset.title.toLowerCase();
+        const author = card.dataset.author.toLowerCase();
+        
+        if (title.includes(query) || author.includes(query)) {
+          card.style.display = 'block';
+          visibleCount++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+    });
+  </script>
 </body>
 </html>
