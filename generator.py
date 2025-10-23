@@ -1,344 +1,141 @@
 import os
-import requests
-from bs4 import BeautifulSoup
-from tqdm import tqdm
-from urllib.parse import quote, urljoin
+import sqlite3
 import re
-import time
+from datetime import datetime
+from jinja2 import Template
 
-# ==========================================
-# 設定
-# ==========================================
-BASE_URL = "https://www.aozora.gr.jp/"
-SAVE_DIR = "aozora_summaries"
-os.makedirs(SAVE_DIR, exist_ok=True)
+# === 設定 ===
+DB_PATH = "summaries.db"  # SQLiteファイルのパス
+OUTPUT_DIR = "output_html"  # 出力先ディレクトリ
+TEMPLATE_PATH = "template.html"  # HTMLテンプレートのパス
 
-# ==========================================
-# 関数群
-# ==========================================
+# === HTMLテンプレート ===
+# ※外部ファイルを使わない場合はこのテンプレート文字列を使用
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}({{ author }})要約</title>
+  <style>
+    body { font-family: sans-serif; line-height: 1.7; margin: 40px; background: #fdfdfd; }
+    h1 { color: #222; border-bottom: 2px solid #ccc; padding-bottom: 5px; }
+    .meta { color: #666; font-size: 0.9em; margin-bottom: 20px; }
+    .summary { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.1); white-space: pre-wrap; }
+    .source { margin-top: 30px; font-size: 0.85em; color: #555; }
+    .source a { color: #0066cc; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <h1>{{ title }}({{ author }})要約</h1>
 
-def get_author_list():
-    """作家一覧を取得（修正版）"""
-    url = BASE_URL + "index_pages/person_all.html"
-    print(f"📥 作家一覧取得中: {url}")
-    res = requests.get(url, timeout=10)
-    res.encoding = res.apparent_encoding
-    soup = BeautifulSoup(res.text, "html.parser")
+  <div class="meta">
+    要約生成日: {{ date }}
+  </div>
 
-    authors = []
-    # olタグ内のリンクを取得
-    for link in soup.select("ol li a"):
-        name = link.text.strip()
-        href = link.get("href")
-        if href:
-            # 相対URLを絶対URLに変換
-            full_url = urljoin(url, href)
-            # アンカーを削除
-            full_url = full_url.split('#')[0]
-            authors.append((name, full_url))
-    
-    print(f"✅ 取得した作家数: {len(authors)}")
-    
-    # デバッグ: 最初の5人のURLを表示
-    print("\n📋 サンプルURL:")
-    for i, (name, url) in enumerate(authors[:5]):
-        print(f"  {i+1}. {name}: {url}")
-    
-    return authors
+  <div class="summary">{{ summary }}</div>
 
-def test_author_page(author_url):
-    """作家ページが存在するかテスト"""
+  <div class="source">
+    出典: <a href="{{ source_url }}" target="_blank" rel="noopener noreferrer">{{ source_url }}</a><br>
+    (青空文庫『{{ title }}』{{ author }} 著 より)
+  </div>
+</body>
+</html>
+"""
+
+# === 関数定義 ===
+
+def get_all_summaries():
+    """データベースからすべての作品データを取得"""
     try:
-        res = requests.get(author_url, timeout=5)
-        if res.status_code == 404:
-            return False, "404 Not Found"
-        res.encoding = res.apparent_encoding
-        soup = BeautifulSoup(res.text, "html.parser")
-        
-        # cardsを含むリンクの数をカウント
-        cards_links = [a for a in soup.find_all("a", href=True) if "cards" in a.get("href", "")]
-        return True, len(cards_links)
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("SELECT title, author, summary, source_url FROM summaries")
+        rows = cur.fetchall()
+        conn.close()
+        return rows
+    except sqlite3.Error as e:
+        print(f"❌ データベースエラー: {e}")
+        return []
     except Exception as e:
-        return False, str(e)
-
-def get_works_from_author(author_url):
-    """作家ページから作品一覧を取得"""
-    try:
-        res = requests.get(author_url, timeout=10)
-        if res.status_code == 404:
-            print(f"  ⚠️ 404 Not Found")
-            return []
-        
-        res.encoding = res.apparent_encoding
-        soup = BeautifulSoup(res.text, "html.parser")
-
-        works = []
-        
-        # 作品リストを探す（複数のパターンに対応）
-        for link in soup.find_all("a", href=True):
-            href = link.get("href", "")
-            title = link.get_text(strip=True)
-            
-            # cardsページへのリンクを探す
-            if "cards" in href and title and len(title) > 1:
-                full_url = urljoin(author_url, href)
-                works.append((title, full_url))
-        
-        # 重複削除
-        seen = set()
-        unique_works = []
-        for title, url in works:
-            if (title, url) not in seen:
-                seen.add((title, url))
-                unique_works.append((title, url))
-                print(f"  ✓ {title}")
-        
-        return unique_works
-        
-    except Exception as e:
-        print(f"  ⚠️ エラー: {e}")
+        print(f"❌ 予期しないエラー: {e}")
         return []
 
-def get_text_url_from_card(card_url):
-    """カードページからHTMLファイルのURLを取得"""
+
+def sanitize_filename(filename):
+    """ファイル名として安全な文字列に変換"""
+    # 使用不可文字を置換
+    filename = re.sub(r'[\\/:*?"<>|]', '_', filename)
+    # 全角記号も置換
+    filename = filename.replace('（', '').replace(')', '')
+    # 空白をアンダースコアに
+    filename = filename.replace(' ', '_').replace('　', '_')
+    # 連続するアンダースコアを1つに
+    filename = re.sub(r'_+', '_', filename)
+    # 先頭・末尾のアンダースコアを削除
+    filename = filename.strip('_')
+    # 空文字列の場合はデフォルト名
+    if not filename:
+        filename = "untitled"
+    # 長すぎる場合は切り詰め（拡張子を除いて200文字まで)
+    if len(filename) > 200:
+        filename = filename[:200]
+    return filename
+
+
+def generate_html(title, author, summary, source_url):
+    """HTMLファイルを生成"""
     try:
-        res = requests.get(card_url, timeout=10)
-        res.encoding = res.apparent_encoding
-        soup = BeautifulSoup(res.text, "html.parser")
+        # Jinja2のautoescape機能を有効化
+        template = Template(HTML_TEMPLATE, autoescape=True)
+        html = template.render(
+            title=title,
+            author=author,
+            summary=summary,
+            source_url=source_url,
+            date=datetime.now().strftime("%Y-%m-%d"),
+        )
+
+        # 出力フォルダを作成
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+        # 安全なファイル名を生成
+        safe_title = sanitize_filename(title)
+        filename = f"{safe_title}.html"
+        filepath = os.path.join(OUTPUT_DIR, filename)
+
+        # HTMLを書き込み
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(html)
+        print(f"✅ {filepath} を生成しました。")
         
-        # HTML版へのリンクを探す
-        for a in soup.find_all("a", href=True):
-            href = a.get("href", "")
-            if "files/" in href and ".html" in href:
-                return urljoin(card_url, href)
-        
-        return None
+    except IOError as e:
+        print(f"❌ ファイル書き込みエラー ({title}): {e}")
     except Exception as e:
-        print(f"    ⚠️ カードページエラー: {e}")
-        return None
+        print(f"❌ HTML生成エラー ({title}): {e}")
 
-def extract_text_from_work(work_url):
-    """作品URLから本文を取得"""
-    try:
-        # カードページからHTML版のURLを取得
-        text_url = get_text_url_from_card(work_url)
-        if not text_url:
-            print(f"    ⚠️ HTML版が見つかりません")
-            return None
-        
-        # 本文ページを取得
-        res_text = requests.get(text_url, timeout=10)
-        res_text.encoding = res_text.apparent_encoding
-        soup_text = BeautifulSoup(res_text.text, "html.parser")
-        
-        # 本文を抽出
-        main_text = soup_text.find("div", class_="main_text")
-        if not main_text:
-            main_text = soup_text.find("body")
-        
-        if not main_text:
-            return None
-        
-        # テキストを整形
-        text = main_text.get_text(separator="\n", strip=True)
-        text = re.sub(r'《.*?》', '', text)
-        text = re.sub(r'［＃.*?］', '', text)
-        text = re.sub(r'｜', '', text)
-        
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-        text = "\n".join(lines)
-        
-        print(f"    ✓ {len(text)}文字取得")
-        return text
-        
-    except Exception as e:
-        print(f"    ⚠️ エラー: {e}")
-        return None
-
-def summarize_text(text):
-    """簡易要約"""
-    text = text.replace("\r", "").replace("\n", " ")
-    if len(text) > 500:
-        return text[:500] + "..."
-    return text
-
-def save_summary(author, title, summary):
-    """要約をHTMLファイルとして保存"""
-    safe_author = quote(author, safe='')
-    safe_title = quote(title, safe='')
-    author_dir = os.path.join(SAVE_DIR, safe_author)
-    os.makedirs(author_dir, exist_ok=True)
-
-    file_path = os.path.join(author_dir, f"{safe_title}.html")
-    
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(f"""<!DOCTYPE html>
-<html lang='ja'>
-<head>
-    <meta charset='UTF-8'>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title} - {author}</title>
-    <style>
-        body {{ font-family: "游ゴシック", "Yu Gothic", sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
-        h1 {{ color: #333; }}
-        .summary {{ line-height: 1.8; background: #f5f5f5; padding: 20px; border-radius: 5px; }}
-    </style>
-</head>
-<body>
-    <h1>{title}</h1>
-    <p><strong>著者:</strong> {author}</p>
-    <div class="summary">
-        <h2>冒頭</h2>
-        <p>{summary}</p>
-    </div>
-    <p><a href="../index.html">← 一覧に戻る</a></p>
-</body>
-</html>""")
-    
-    return file_path
-
-# ==========================================
-# メイン処理
-# ==========================================
 
 def main():
-    all_authors = get_author_list()
-    
-    # 有効な作家を探す
-    print(f"\n{'='*60}")
-    print("🔍 有効な作家ページを探索中...")
-    print(f"{'='*60}\n")
-    
-    valid_authors = []
-    
-    # 様々な範囲から試す
-    test_ranges = [
-        (0, 20, "最初の20人"),
-        (50, 70, "50-70番目"),
-        (100, 120, "100-120番目"),
-        (200, 220, "200-220番目"),
-    ]
-    
-    for start, end, label in test_ranges:
-        print(f"\n📍 {label}を確認中...")
-        for i in range(start, min(end, len(all_authors))):
-            author, url = all_authors[i]
-            
-            # 短い間隔でテスト
-            is_valid, result = test_author_page(url)
-            
-            if is_valid and result > 0:
-                print(f"  ✅ {author}: {result}作品あり")
-                valid_authors.append((author, url))
-                if len(valid_authors) >= 5:
-                    break
-            
-            time.sleep(0.2)  # サーバー負荷軽減
-        
-        if len(valid_authors) >= 5:
-            break
-    
-    if not valid_authors:
-        print("\n❌ 有効な作家ページが見つかりませんでした。")
-        print("💡 青空文庫のURL構造が変更されている可能性があります。")
+    """メイン処理"""
+    if not os.path.exists(DB_PATH):
+        print(f"❌ データベースファイルが見つかりません: {DB_PATH}")
         return
+
+    summaries = get_all_summaries()
+    if not summaries:
+        print("⚠️ データベースに要約がありません。")
+        return
+
+    print(f"📚 {len(summaries)}件の要約を処理します...\n")
     
-    print(f"\n{'='*60}")
-    print(f"✅ 処理対象: {len(valid_authors)}名")
-    print(f"{'='*60}\n")
+    success_count = 0
+    for title, author, summary, source_url in summaries:
+        generate_html(title, author, summary, source_url)
+        success_count += 1
     
-    index_entries = []
+    print(f"\n✨ 完了: {success_count}件のHTMLファイルを生成しました。")
 
-    for author, author_url in tqdm(valid_authors, desc="作家処理中"):
-        print(f"\n👤 {author}")
-        print(f"   URL: {author_url}")
-        
-        works = get_works_from_author(author_url)[:3]
-        
-        if not works:
-            continue
-        
-        safe_author = quote(author, safe='')
-        author_page_name = safe_author + ".html"
-        author_page_path = os.path.join(SAVE_DIR, author_page_name)
-
-        author_entries = []
-        for title, work_url in works:
-            try:
-                print(f"\n  📚 {title}")
-                text = extract_text_from_work(work_url)
-                if not text or len(text) < 100:
-                    continue
-                
-                summary = summarize_text(text)
-                path = save_summary(author, title, summary)
-                rel_path = os.path.relpath(path, SAVE_DIR).replace("\\", "/")
-                author_entries.append(f"        <li><a href='{rel_path}'>{title}</a></li>")
-                
-                time.sleep(0.5)
-                
-            except Exception as e:
-                print(f"    ⚠️ エラー: {e}")
-
-        if author_entries:
-            with open(author_page_path, "w", encoding="utf-8") as f:
-                f.write(f"""<!DOCTYPE html>
-<html lang='ja'>
-<head>
-    <meta charset='UTF-8'>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{author} - 作品一覧</title>
-    <style>
-        body {{ font-family: "游ゴシック", "Yu Gothic", sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
-        h1 {{ color: #333; }}
-        ul {{ list-style-type: none; padding: 0; }}
-        li {{ margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }}
-        a {{ text-decoration: none; color: #0066cc; }}
-        a:hover {{ text-decoration: underline; }}
-    </style>
-</head>
-<body>
-    <h1>{author} - 作品一覧</h1>
-    <ul>
-{chr(10).join(author_entries)}
-    </ul>
-    <p><a href="index.html">← トップに戻る</a></p>
-</body>
-</html>""")
-            index_entries.append(f"        <li><a href='{author_page_name}'>{author} ({len(author_entries)}作品)</a></li>")
-            print(f"\n  ✅ {len(author_entries)}作品完了")
-
-    # インデックスページ作成
-    index_path = os.path.join(SAVE_DIR, "index.html")
-    with open(index_path, "w", encoding="utf-8") as f:
-        f.write(f"""<!DOCTYPE html>
-<html lang='ja'>
-<head>
-    <meta charset='UTF-8'>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>青空文庫 要約まとめ</title>
-    <style>
-        body {{ font-family: "游ゴシック", "Yu Gothic", sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #fafafa; }}
-        h1 {{ color: #333; text-align: center; }}
-        ul {{ list-style-type: none; padding: 0; }}
-        li {{ margin: 10px 0; padding: 15px; background: white; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        a {{ text-decoration: none; color: #0066cc; font-size: 18px; }}
-        a:hover {{ text-decoration: underline; }}
-    </style>
-</head>
-<body>
-    <h1>📚 青空文庫 要約まとめ</h1>
-    <p style="text-align: center; color: #666;">青空文庫の作品をあらすじ付きでまとめました</p>
-    <ul>
-{chr(10).join(index_entries)}
-    </ul>
-</body>
-</html>""")
-
-    print(f"\n{'='*60}")
-    print(f"✅ 完了: {len(index_entries)}名の作家")
-    print(f"✅ インデックス: {index_path}")
-    print(f"{'='*60}")
 
 if __name__ == "__main__":
     main()
